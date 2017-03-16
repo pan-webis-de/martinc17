@@ -1,0 +1,9 @@
+difficult	a
+ease	a
+easier	a
+hard	a
+impossible	a
+pleasant	a
+possible	a
+tough	a
+unpleasant	a

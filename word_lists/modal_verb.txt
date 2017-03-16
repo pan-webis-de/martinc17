@@ -1,0 +1,14 @@
+can
+can't
+could
+couldn't
+may
+might
+must
+mustn't
+should
+shouldn't
+will
+would
+wouldn't
+shall
