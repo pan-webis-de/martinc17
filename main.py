@@ -56,7 +56,8 @@ def generate_output(path, author_id, lang, variety, gender):
     root.set('variety', variety)
     root.set('gender', gender)
     tree = ET.ElementTree(root)
-    tree.write(join(path, id + ".xml"))
+    tree.write(join(path, author_id + ".xml"))
+
 
 #read PAN 2016 tweet corpus from xml and extract tweet texts, variety and gender of the author. Write to csv for later use.
 def readPANcorpus(path, lang):
@@ -335,7 +336,7 @@ if __name__ == '__main__':
     argparser.add_argument('-t', '--task', dest='task', type=str, default='gender',
                            help='Set task')
 
-    argparser.add_argument('-m', '--create_model', dest='create_model', type=bool, default=True,
+    argparser.add_argument('-m', '--create_model', dest='create_model', type=str, default='True',
                            help='Choose to create model or not')
 
     argparser.add_argument('-o', '--output', dest='output', type=str, default='./results',
@@ -348,6 +349,7 @@ if __name__ == '__main__':
 
     #uncomment this to create new classification model, otherwise use a pickled model and test it on blogs
     create_model = args.create_model
+    create_model = True if create_model == 'True' else False
     lang = args.language
     task = args.task
     output = args.output
@@ -408,7 +410,10 @@ if __name__ == '__main__':
 
     # uncomment this section if you want to read train sets from original file
     readPANcorpus(input, lang)
-    df_data = pd.read_csv('PAN_data_' + lang + '.csv', encoding="utf-8", delimiter="\t")
+    if not create_model:
+        df_data = pd.read_csv('PAN_data_' + lang + '.csv', encoding="utf-8", delimiter="\t")[:100]
+    else:
+        df_data = pd.read_csv('PAN_data_' + lang + '.csv', encoding="utf-8", delimiter="\t")
     print(df_data.shape)
 
     #preprocess and tag data and write it to csv for later use
@@ -648,14 +653,14 @@ if __name__ == '__main__':
     else:
         id = df_data['id']
         X = df_data.drop(['gender', 'variety', 'id'], axis=1)
-        clf = joblib.load('svm_clf' + lang + '_gender.pkl')
+        clf = joblib.load('svm_clf_' + lang + '_gender.pkl')
         y_pred_gender = clf.predict(X)
-        clf = joblib.load('svm_clf' + lang + '_variety.pkl')
+        clf = joblib.load('svm_clf_' + lang + '_variety.pkl')
         y_pred_variety = clf.predict(X)
         print("Accuracy on test set:")
-        pd.DataFrame({"id": id, "gender": y_pred_gender, "variety": y_pred_variety}).to_csv('results_' + 'lang' +'.csv', index=False, header=False)
-        with open('results_' + 'lang' +'.csv') as f:
-            for id, gender, variety in f.split(','):
-                generate_output(output, id, lang, gender, variety)
+        df_results = pd.DataFrame({"id": id, "gender": y_pred_gender, "variety": y_pred_variety})
+        df_results.to_csv('results_' + lang + '.csv', index=False, header=True)
+        for index, row in df_results.iterrows():
+            generate_output(output, row['id'], lang, row['variety'], row['gender'])
 
 
