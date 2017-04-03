@@ -329,6 +329,7 @@ class CSCTransformer(TransformerMixin):
 if __name__ == '__main__':
 
     #run from command line
+    #e.g. python3 main.py --create_model 'False' --input './pan17-author-profiling-training-dataset-2017-03-10' --output ./results
     argparser = argparse.ArgumentParser(description='Author Profiling Evaluation')
     argparser.add_argument('-l', '--language', dest='language', type=str, default='en',
                            help='Set language')
@@ -355,7 +356,7 @@ if __name__ == '__main__':
     output = args.output
     input = args.input
 
-    print(create_model, lang, task)
+    print(create_model, lang, task, input, output)
     #train tagger
     if lang == 'en':
         sent_tokenizer = nltk.data.load('tokenizers/punkt/english.pickle')
@@ -657,7 +658,6 @@ if __name__ == '__main__':
         y_pred_gender = clf.predict(X)
         clf = joblib.load('svm_clf_' + lang + '_variety.pkl')
         y_pred_variety = clf.predict(X)
-        print("Accuracy on test set:")
         df_results = pd.DataFrame({"id": id, "gender": y_pred_gender, "variety": y_pred_variety})
         df_results.to_csv('results_' + lang + '.csv', index=False, header=True)
         for index, row in df_results.iterrows():
