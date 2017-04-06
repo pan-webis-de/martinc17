@@ -38,6 +38,7 @@ import codecs
 import gc
 import argparse
 import nltk
+from network_features import readNetworkFeatures
 
 import resource
 rsrc = resource.RLIMIT_AS
@@ -60,7 +61,7 @@ def generate_output(path, author_id, lang, variety, gender):
 
 
 #read PAN 2016 tweet corpus from xml and extract tweet texts, variety and gender of the author. Write to csv for later use.
-def readPANcorpus(path, lang):
+def readPANcorpus(path, lang, test=False):
     path = join(path, lang)
     files = [join(path, f) for f in listdir(path) if isfile(join(path, f)) and f.endswith('xml')]
     data = [['id', 'gender', 'variety', 'text']]
@@ -107,13 +108,16 @@ def readPANcorpus(path, lang):
         else:
             print(name)
     print(cntRT)
-    print('Tweets: ', cntTweet)
-
-    #write to csv file
-    with open('PAN_data_' + lang + '.csv', 'w') as fp:
-        a = csv.writer(fp, delimiter='\t')
-        a.writerows(data)
-    return data
+    print('Number of Tweets: ', cntTweet)
+    if not test:
+        #write to csv file
+        with open('PAN_data_' + lang + '.csv', 'w') as fp:
+            a = csv.writer(fp, delimiter='\t')
+            a.writerows(data)
+    else:
+        headers = data.pop(0)
+        data = pd.DataFrame(data, columns=headers)
+        return data
 
 
 #read different word lists and return a set of words
@@ -326,97 +330,7 @@ class CSCTransformer(TransformerMixin):
         return {}
 
 
-if __name__ == '__main__':
-
-    #run from command line
-    #e.g. python3 main.py --create_model 'False' --input './pan17-author-profiling-training-dataset-2017-03-10' --output ./results
-    argparser = argparse.ArgumentParser(description='Author Profiling Evaluation')
-    argparser.add_argument('-l', '--language', dest='language', type=str, default='en',
-                           help='Set language')
-
-    argparser.add_argument('-t', '--task', dest='task', type=str, default='gender',
-                           help='Set task')
-
-    argparser.add_argument('-m', '--create_model', dest='create_model', type=str, default='True',
-                           help='Choose to create model or not')
-
-    argparser.add_argument('-o', '--output', dest='output', type=str, default='./results',
-                           help='Choose output directory')
-
-    argparser.add_argument('-c', '--input', dest='input', type=str, default='pan17-author-profiling-training-dataset-2017-03-10',
-                           help='Choose input trainset')
-
-    args = argparser.parse_args()
-
-    #uncomment this to create new classification model, otherwise use a pickled model and test it on blogs
-    create_model = args.create_model
-    create_model = True if create_model == 'True' else False
-    lang = args.language
-    task = args.task
-    output = args.output
-    input = args.input
-
-    print(create_model, lang, task, input, output)
-    #train tagger
-    if lang == 'en':
-        sent_tokenizer = nltk.data.load('tokenizers/punkt/english.pickle')
-        perceptron_tagger = PerceptronTagger()
-    else:
-        perceptron_tagger = PerceptronTagger(load=False)
-        if lang == 'es':
-            sent_tokenizer = nltk.data.load('tokenizers/punkt/spanish.pickle')
-            perceptron_tagger.train(list(cess.tagged_sents()))
-        elif lang == 'pt':
-            sent_tokenizer = nltk.data.load('tokenizers/punkt/portuguese.pickle')
-            tsents = floresta.tagged_sents()
-            tsents = [[(w.lower(), simplify_tag(t)) for (w, t) in sent] for sent in tsents if sent]
-            perceptron_tagger.train(tsents)
-        else:
-            sent_tokenizer = None
-
-    #read wordlists
-    emoticons = ['<3', ':D', ':)', ':(', ':>)', ':-)', ':]', '=)', '-(' ':[', '=(', ';)', ';-)', ':-P', ':P', ':-p', ':p', '=P', ':-O', ':O', ':-o', ':o']
-    #emoticons = read_wordList('emoticon.txt')
-    amplifiers = read_wordList('word_lists/amplifier.txt')
-    aux_verbs = read_wordList('word_lists/aux_verb.txt')
-    cognition_verbs = read_wordList('word_lists/cognition_verb.txt')
-    communication_verbs = read_wordList('word_lists/communication_verb.txt')
-    modal_verbs = read_wordList('word_lists/modal_verb.txt')
-    negations = read_wordList('word_lists/negation.txt')
-    fp_pronouns = read_wordList('word_lists/firstperson_pronoun.txt')
-    functions = read_wordList('word_lists/function.txt')
-    hedge_words = read_wordList('word_lists/hedge_word.txt')
-    social_words = read_wordList('word_lists/social.txt')
-    swear_words = read_wordList('word_lists/swear_word.txt')
-    wh_words = read_wordList('word_lists/wh_word.txt')
-
-    #bieberList
-    ability = read_wordList('Biber_simple/Ability_biber.txt')
-    attitude = read_wordList('Biber_simple/AttituteEmotion_biber.txt')
-    causation = read_wordList('Biber_simple/CausationModalityEffort_biber.txt')
-    certainty = read_wordList('Biber_simple/Certainty_biber.txt')
-    cognition = read_wordList('Biber_simple/Cognition_biber.txt')
-    communication = read_wordList('Biber_simple/Communication_biber.txt')
-    desiredecision = read_wordList('Biber_simple/DesireDecision_biber.txt')
-    easedifficulty = read_wordList('Biber_simple/EaseDifficulty_biber.txt')
-    evaluation = read_wordList('Biber_simple/Evaluation_biber.txt')
-    likelihood = read_wordList('Biber_simple/Likelihood_biber.txt')
-    necessity = read_wordList('Biber_simple/ModalNecessity_biber.txt')
-    possibility = read_wordList('Biber_simple/ModalPossiblity_biber.txt')
-    prediction = read_wordList('Biber_simple/ModalPrediction.txt')
-    nouns = read_wordList('Biber_simple/Nouns_various.txt')
-    premodadv = read_wordList('Biber_simple/PremodAdv_biber.txt')
-    style = read_wordList('Biber_simple/Stlye_biber.txt')
-
-
-    # uncomment this section if you want to read train sets from original file
-    readPANcorpus(input, lang)
-    if not create_model:
-        df_data = pd.read_csv('PAN_data_' + lang + '.csv', encoding="utf-8", delimiter="\t")[:100]
-    else:
-        df_data = pd.read_csv('PAN_data_' + lang + '.csv', encoding="utf-8", delimiter="\t")
-    print(df_data.shape)
-
+def preprocess(df_data, lang, perceptron_tagger, sent_tokenizer, test=False):
     #preprocess and tag data and write it to csv for later use
     #df_data['text'] = df_data['text'].values.astype('U')
     print('clean text')
@@ -430,24 +344,14 @@ if __name__ == '__main__':
     df_data['no_stopwords'] = df_data['no_punctuation'].map(lambda x: remove_stopwords(x))
     print('lemmatization')
     df_data['lemmas'] = df_data['text_clean'].map(lambda x: lemmatize(x))
-
-    df_data.to_csv('PAN_data_' + lang + '_tagged.csv', sep='\t', encoding='utf-8', index=False)
-    print("written to csv")
-
-    #uncomment this to read  data from csv
-    data_iterator = pd.read_csv('PAN_data_' + lang + '_tagged.csv', encoding="utf-8", delimiter="\t", chunksize=1000)
-    df_data = pd.DataFrame()
-    for sub_data in data_iterator:
-        df_data = pd.concat([df_data, sub_data], axis=0)
-        gc.collect()
-    print("read csv")
-    print(df_data.columns.tolist())
-    print(df_data.shape)
-
-    #shuffle the corpus and optionaly choose the chunk you want to use if you don't want to use the whole thing - will be much faster
-    #df_data = df_data.reindex(np.random.permutation(df_data.index))
+    if not test:
+        df_data.to_csv('PAN_data_' + lang + '_tagged.csv', sep='\t', encoding='utf-8', index=False)
+        print("written to csv")
+    print("--- Preprocessing ---", round(((time.time() - start_time) / 60), 2))
+    return df_data
 
 
+def convertToUnicode(df_data):
     # convert to unicode
     df_data['id'] = df_data['id'].map(lambda x: str(x))
     df_data['text'] = df_data['text'].map(lambda x: str(x))
@@ -458,7 +362,45 @@ if __name__ == '__main__':
     df_data['no_stopwords'] = df_data['no_stopwords'].map(lambda x: str(x))
     df_data['no_punctuation'] = df_data['no_punctuation'].map(lambda x: str(x))
     df_data['lemmas'] = df_data['lemmas'].map(lambda x: str(x))
+    return df_data
 
+
+#read wordlists
+emoticons = ['<3', ':D', ':)', ':(', ':>)', ':-)', ':]', '=)', '-(' ':[', '=(', ';)', ';-)', ':-P', ':P', ':-p', ':p', '=P', ':-O', ':O', ':-o', ':o']
+#emoticons = read_wordList('emoticon.txt')
+amplifiers = read_wordList('word_lists/amplifier.txt')
+aux_verbs = read_wordList('word_lists/aux_verb.txt')
+cognition_verbs = read_wordList('word_lists/cognition_verb.txt')
+communication_verbs = read_wordList('word_lists/communication_verb.txt')
+modal_verbs = read_wordList('word_lists/modal_verb.txt')
+negations = read_wordList('word_lists/negation.txt')
+fp_pronouns = read_wordList('word_lists/firstperson_pronoun.txt')
+functions = read_wordList('word_lists/function.txt')
+hedge_words = read_wordList('word_lists/hedge_word.txt')
+social_words = read_wordList('word_lists/social.txt')
+swear_words = read_wordList('word_lists/swear_word.txt')
+wh_words = read_wordList('word_lists/wh_word.txt')
+
+#bieberList
+ability = read_wordList('Biber_simple/Ability_biber.txt')
+attitude = read_wordList('Biber_simple/AttituteEmotion_biber.txt')
+causation = read_wordList('Biber_simple/CausationModalityEffort_biber.txt')
+certainty = read_wordList('Biber_simple/Certainty_biber.txt')
+cognition = read_wordList('Biber_simple/Cognition_biber.txt')
+communication = read_wordList('Biber_simple/Communication_biber.txt')
+desiredecision = read_wordList('Biber_simple/DesireDecision_biber.txt')
+easedifficulty = read_wordList('Biber_simple/EaseDifficulty_biber.txt')
+evaluation = read_wordList('Biber_simple/Evaluation_biber.txt')
+likelihood = read_wordList('Biber_simple/Likelihood_biber.txt')
+necessity = read_wordList('Biber_simple/ModalNecessity_biber.txt')
+possibility = read_wordList('Biber_simple/ModalPossiblity_biber.txt')
+prediction = read_wordList('Biber_simple/ModalPrediction.txt')
+nouns = read_wordList('Biber_simple/Nouns_various.txt')
+premodadv = read_wordList('Biber_simple/PremodAdv_biber.txt')
+style = read_wordList('Biber_simple/Stlye_biber.txt')
+
+
+def createFeatures(df_data):
     df_data['affixes'] = df_data['text_clean'].map(lambda x: get_affix(x))
 
     # create numeric features
@@ -503,6 +445,13 @@ if __name__ == '__main__':
     df_data['nouns'] = df_data['lemmas'].map(lambda x: countWords(nouns, x))
     df_data['premodadv'] = df_data['lemmas'].map(lambda x: countWords(premodadv, x))
     df_data['style'] = df_data['text_clean'].map(lambda x: countWords(style, x))
+
+    #network features
+    #df_network = readNetworkFeatures()
+    #df_data = pd.concat([df_data, df_network], axis=1)
+    return df_data
+
+def get_stats(df_data, lang):
 
     #get some stats
     print('all authors: ', df_data.shape[0])
@@ -564,103 +513,5 @@ if __name__ == '__main__':
         print('num. ven: ', df_ven.shape[0])
         print('majority class variety: ', max(df_arg.shape[0], df_chi.shape[0], df_col.shape[0], df_mex.shape[0], df_per.shape[0], df_spa.shape[0], df_ven.shape[0]) / df_data.shape[0])
 
-
-    print("--- Preprocessing ---", round(((time.time() - start_time)/60),2))
-
-    if create_model:
-        #numeric feature evaluation
-        X_eval = df_data.drop(['gender','variety','text', 'pos_tag', 'no_punctuation', 'no_stopwords', 'text_clean', 'lemmas', 'affixes', 'id'], axis=1)
-        column_names = X_eval.columns.values
-        minmax_scale = preprocessing.MinMaxScaler().fit(X_eval)
-        X_eval=minmax_scale.transform(X_eval)
-        y_eval = df_data['variety'].values
-        chi2score = chi2(X_eval, y_eval)
-        chi2score = zip(chi2score[0], chi2score[1])
-        wscores = zip(column_names, chi2score)
-        result_list = sorted(wscores, reverse=True, key=lambda x: x[1][0])
-        print("Numeric features arranged by chi2 value - the other number is p-value")
-        print(result_list)
-
-        #choose to predict either gender or age
-        y = df_data[task].values
-        X = df_data.drop(['gender', 'variety', 'id'], axis=1)
-
-
-        #other feature evaluation
-        mnb = MultinomialNB()
-        tfidf = TfidfVectorizer(ngram_range=(3,3), lowercase=False)
-        trainset= tfidf.fit_transform(df_data['pos_tag'].values)
-        mnb.fit(trainset, y)
-        most_informative_feature_for_class(tfidf, mnb)
-
-
-        #build classification model
-        svm = SVC(decision_function_shape ='ovr', C=1.0, kernel="linear", probability=True)
-        lsvm = LinearSVC(penalty='l2', multi_class='ovr', fit_intercept=False, C=1.0)
-        lr = LogisticRegression(C=1e2, multi_class='ovr', solver='liblinear', fit_intercept=False, random_state=123)
-        rfc = RandomForestClassifier(random_state=2016, n_estimators=200, max_depth=15)
-        eclf = VotingClassifier(estimators=[('lr', lr), ('svm', lsvm)], voting="hard")
-        bclf = BaggingClassifier(base_estimator=svm, random_state=2016, max_samples=0.7, max_features=0.7, n_estimators=100)
-        xgb = xgb.XGBClassifier(max_depth=5, subsample=0.8, n_estimators=1000, min_child_weight=1, colsample_bytree=0.8, learning_rate=1, nthread=8)
-        baseline = DummyClassifier(strategy='most_frequent')
-        tfidf_unigram = TfidfVectorizer(ngram_range=(1, 1), sublinear_tf=True, min_df=10, max_df=0.8)
-        tfidf_bigram = TfidfVectorizer(ngram_range=(2, 2), sublinear_tf=False, min_df=20, max_df=0.5)
-        tfidf_topics = TfidfVectorizer(ngram_range=(1, 1), sublinear_tf=False, min_df=1, max_df=0.5)
-        tfidf_pos = TfidfVectorizer(ngram_range=(2,2), sublinear_tf=True, min_df=0.1, max_df=0.6, lowercase=False)
-        character_vectorizer = CountVectorizer(analyzer='char_wb', ngram_range=(4, 4), lowercase=False, min_df=4, max_df=0.8)
-        tfidf_affixes = TfidfVectorizer(ngram_range=(1, 1), sublinear_tf=True, min_df=0.1, max_df=0.8)
-        tfidf_transformer = TfidfTransformer(sublinear_tf=True)
-        tsvd = TruncatedSVD(random_state=2016, n_components=200, n_iter=5)
-
-        features = [#('cst', digit_col()),
-                    ('unigram', pipeline.Pipeline([('s1', text_col(key='no_stopwords')), ('tfidf_unigram', tfidf_unigram)])),
-                    ('bigram', pipeline.Pipeline([('s2', text_col(key='no_punctuation')), ('tfidf_bigram', tfidf_bigram)])),
-                    #('topics', pipeline.Pipeline([('s3', text_col(key='no_stopwords')), ('tfidf_topics', tfidf_topics), ('tsvd', tsvd)])),
-                    ('tag', pipeline.Pipeline([('s4', text_col(key='pos_tag')), ('tfidf_pos', tfidf_pos)])),
-                    ('character', pipeline.Pipeline([('s5', text_col(key='text_clean')),('character_vectorizer', character_vectorizer), ('tfidf_character', tfidf_transformer)])),
-                    ('suffixes', pipeline.Pipeline([('s5', text_col(key='affixes')),('tfidf_affixes', tfidf_affixes)])),
-                    ]
-        weights = {#'cst': 0.2,
-                   'unigram': 0.8,
-                   'bigram': 0.1,
-                   #'topics': 0.1,
-                   'tag': 0.2,
-                   'character': 0.9,
-                   'suffixes': 0.4
-        }
-
-        if lang == 'ar':
-            features = features[0:2] + features[3:]
-            del weights['tag']
-
-        clf = pipeline.Pipeline([
-                ('union', FeatureUnion(
-                        transformer_list = features,
-                        transformer_weights = weights,
-                        n_jobs = 1
-                        )),
-                ('scale', Normalizer()),
-                ('svm', lr)])
-        kfold = model_selection.KFold(n_splits=10, random_state=2016)
-        results = model_selection.cross_val_score(clf, X , y, cv=kfold, verbose=20)
-        print("CV score:")
-        print(results.mean())
-
-        clf.fit(X, y)
-        joblib.dump(clf, 'svm_clf_' + lang + '_' + task + '.pkl')
-        print("--- Model creation in minutes ---", round(((time.time() - start_time) / 60), 2))
-        print("--- Training & Testing in minutes ---", round(((time.time() - start_time) / 60), 2))
-
-    else:
-        id = df_data['id']
-        X = df_data.drop(['gender', 'variety', 'id'], axis=1)
-        clf = joblib.load('svm_clf_' + lang + '_gender.pkl')
-        y_pred_gender = clf.predict(X)
-        clf = joblib.load('svm_clf_' + lang + '_variety.pkl')
-        y_pred_variety = clf.predict(X)
-        df_results = pd.DataFrame({"id": id, "gender": y_pred_gender, "variety": y_pred_variety})
-        df_results.to_csv('results_' + lang + '.csv', index=False, header=True)
-        for index, row in df_results.iterrows():
-            generate_output(output, row['id'], lang, row['variety'], row['gender'])
 
 
