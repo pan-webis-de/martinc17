@@ -39,6 +39,8 @@ import gc
 import argparse
 import nltk
 from network_features import readNetworkFeatures
+from itertools import groupby
+
 
 import resource
 rsrc = resource.RLIMIT_AS
@@ -163,17 +165,17 @@ def remove_stopwords(text):
     return " ".join(text)
 
 
-def remove_mentions(text):
-    return re.sub(r'(?:@[\w_]+)', '', text)
+def remove_mentions(text, replace_token):
+    return re.sub(r'(?:@[\w_]+)', replace_token, text)
 
 
-def remove_hashtags(text):
-    return re.sub(r"(?:\#+[\w_]+[\w\'_\-]*[\w_]+)", '', text)
+def remove_hashtags(text, replace_token):
+    return re.sub(r"(?:\#+[\w_]+[\w\'_\-]*[\w_]+)", replace_token, text)
 
 
-def remove_url(text):
+def remove_url(text, replace_token):
     regex = 'http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\(\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+'
-    return re.sub(regex, "", text)
+    return re.sub(regex, replace_token, text)
 
 
 def tag(tagger, text, sent_tokenize):
@@ -193,6 +195,27 @@ def simplify_tag(t):
     else:
         return t
 
+def get_emojis(path):
+    emoji_dict = {}
+    df_emojis = pd.read_csv(path, encoding="utf-8", delimiter=",")
+    for index, row in df_emojis.iterrows():
+        occurrences = row['Occurrences']
+        pos = (row['Positive'] + 1) / (occurrences + 3)
+        neg = (row['Negative'] + 1) / (occurrences + 3)
+        sent = pos - neg
+        emoji_dict[row['Emoji']] = sent
+    return emoji_dict
+
+
+def countCharacterFlooding(text):
+    text = ''.join(text.split())
+    groups = groupby(text)
+    cnt = 0
+    for label, group in groups:
+        char_cnt = sum(1 for _ in group)
+        if char_cnt > 2:
+            cnt += 1
+    return cnt
 
 #count words in tweet that are in a specific word list and return frequency
 def countWords(wordList, text):
@@ -205,15 +228,25 @@ def countWords(wordList, text):
         return 0
     return cnt/length
 
-#count emoticons and return frequency
-def count_emoticons(text, list):
+#count specific characters
+def count_patterns(text, list):
     cnt=0
     length = len(text)
-    for emoticon in list:
-        cnt += text.count(emoticon)
+    for pattern in list:
+        cnt += text.count(pattern)
     if length == 0:
         return 0
     return cnt/length
+
+#get sentiment according to emojis
+def get_sentiment(text, emoji_dict):
+    sentiment = 0
+    list = emoji_dict.keys()
+    for pattern in list:
+        text_cnt = text.count(pattern)
+        sentiment += emoji_dict[pattern] * text_cnt
+    return sentiment
+
 
 #count specific pos tags and return frequency
 def count_pos(pos_sequence, pos_list):
@@ -257,11 +290,12 @@ def most_informative_feature_for_class(vectorizer, classifier, n=40):
     for coef, feat in reversed(topn_class2):
         print(class_labels[1], coef, feat)
 
+
 #find how many words in a document are spelled incorrectly
 def find_garbage_rate(text, chkr):
-    text = remove_hashtags(text)
-    text = remove_mentions(text)
-    text = remove_url(text)
+    text = remove_hashtags(text, '')
+    text = remove_mentions(text, '')
+    text = remove_url(text, '')
     text = remove_punctuation(text)
     chkr.set_text(text)
     text_len = len(text.split())
@@ -289,6 +323,7 @@ def count_error(text, chkr):
             error_rate = 0
         common_error += error_rate
     return common_error/num_tweets
+
 
 def get_affix(text):
     return " ".join([word[-4:] if len(word) >=4 else word for word in text.split()])
@@ -330,20 +365,28 @@ class CSCTransformer(TransformerMixin):
         return {}
 
 
+#preprocess and tag data and write it to csv for later use
 def preprocess(df_data, lang, perceptron_tagger, sent_tokenizer, test=False):
-    #preprocess and tag data and write it to csv for later use
-    #df_data['text'] = df_data['text'].values.astype('U')
     print('clean text')
-    #df_data['text'] = df_data['text'].map(lambda x: beautify(x))
-    df_data['text_clean'] = df_data['text'].map(lambda x: remove_hashtags(x))
-    df_data['text_clean'] = df_data['text_clean'].map(lambda x: remove_url(x))
-    df_data['text_clean'] = df_data['text_clean'].map(lambda x: remove_mentions(x))
+    df_data['text_clean_r'] = df_data['text'].map(lambda x: remove_hashtags(x, '#HASHTAG'))
+    df_data['text_clean_r'] = df_data['text_clean_r'].map(lambda x: remove_url(x, "HTTPURL"))
+    df_data['text_clean_r'] = df_data['text_clean_r'].map(lambda x: remove_mentions(x, '@MENTION'))
+    df_data['text_clean'] = df_data['text'].map(lambda x: remove_hashtags(x, ''))
+    df_data['text_clean'] = df_data['text_clean'].map(lambda x: remove_url(x, ""))
+    df_data['text_clean'] = df_data['text_clean'].map(lambda x: remove_mentions(x, ''))
     print('tagging')
+
+    df_data['text_clean'] = df_data['text'].map(lambda x: remove_hashtags(x, ''))
+    df_data['text_clean'] = df_data['text_clean'].map(lambda x: remove_url(x, ''))
+    df_data['text_clean'] = df_data['text_clean'].map(lambda x: remove_mentions(x, ''))
+
     df_data['pos_tag'] = df_data['text_clean'].map(lambda x: tag(perceptron_tagger, x, sent_tokenizer))
     df_data['no_punctuation'] = df_data['text_clean'].map(lambda x: remove_punctuation(x))
     df_data['no_stopwords'] = df_data['no_punctuation'].map(lambda x: remove_stopwords(x))
     print('lemmatization')
     df_data['lemmas'] = df_data['text_clean'].map(lambda x: lemmatize(x))
+    df_data['text_clean'] = df_data['text_clean_r']
+    df_data = df_data.drop('text_clean_r', 1)
     if not test:
         df_data.to_csv('PAN_data_' + lang + '_tagged.csv', sep='\t', encoding='utf-8', index=False)
         print("written to csv")
@@ -364,10 +407,11 @@ def convertToUnicode(df_data):
     df_data['lemmas'] = df_data['lemmas'].map(lambda x: str(x))
     return df_data
 
+emoji_dict = get_emojis('Emoji_Sentiment_Data_v1.0.csv')
+emoji_list = emoji_dict.keys()
 
 #read wordlists
 emoticons = ['<3', ':D', ':)', ':(', ':>)', ':-)', ':]', '=)', '-(' ':[', '=(', ';)', ';-)', ':-P', ':P', ':-p', ':p', '=P', ':-O', ':O', ':-o', ':o']
-#emoticons = read_wordList('emoticon.txt')
 amplifiers = read_wordList('word_lists/amplifier.txt')
 aux_verbs = read_wordList('word_lists/aux_verb.txt')
 cognition_verbs = read_wordList('word_lists/cognition_verb.txt')
@@ -403,8 +447,8 @@ style = read_wordList('Biber_simple/Stlye_biber.txt')
 def createFeatures(df_data):
     df_data['affixes'] = df_data['text_clean'].map(lambda x: get_affix(x))
 
-    # create numeric features
-    df_data['amplifiers'] = df_data['text_clean'].map(lambda x: countWords(amplifiers,x))
+    # word and POS tag lists
+    '''df_data['amplifiers'] = df_data['text_clean'].map(lambda x: countWords(amplifiers,x))
     df_data['aux_verbs'] = df_data['text_clean'].map(lambda x: countWords(aux_verbs, x))
     df_data['cognition_verbs'] = df_data['text_clean'].map(lambda x: countWords(cognition_verbs, x))
     df_data['communication_verbs'] = df_data['text_clean'].map(lambda x: countWords(communication_verbs, x))
@@ -416,15 +460,10 @@ def createFeatures(df_data):
 
     df_data['number_of_nouns'] = df_data['pos_tag'].map(lambda x: count_pos(x, ['NN', 'NNP', 'NNS', 'NNPS']))
     df_data['number_of_pronouns'] = df_data['pos_tag'].map(lambda x: count_pos(x, ['PRP', 'PRP$']))
-    df_data['number_of_dots'] = df_data['text_clean'].map(lambda x: countWords(['.'], x))
-    df_data['number_of_exclamation_marks'] = df_data['text_clean'].map(lambda x: countWords(['!'], x))
 
     df_data['hedge_words'] = df_data['text_clean'].map(lambda x: countWords(hedge_words, x))
     df_data['social_words'] = df_data['text_clean'].map(lambda x: countWords(social_words, x))
     df_data['swear_words'] = df_data['text_clean'].map(lambda x: countWords(swear_words, x))
-    df_data['number_of_emoticons'] = df_data['text_clean'].map(lambda x: count_emoticons(x, emoticons))
-    df_data['number_of_commas'] = df_data['text_clean'].map(lambda x: countWords([','], x))
-    df_data['number_of_question_marks'] = df_data['text_clean'].map(lambda x: countWords(['?'], x))
     df_data['number_of_errors'] = df_data['text_clean'].map(lambda x: count_error(x,chkr))
     df_data['noun_pronoun_ratio'] = (df_data['text_clean'] + " " + df_data['pos_tag']).map(lambda x: noun_pronoun_ratio(x))
 
@@ -444,7 +483,24 @@ def createFeatures(df_data):
     df_data['prediction'] = df_data['lemmas'].map(lambda x: countWords(prediction, x))
     df_data['nouns'] = df_data['lemmas'].map(lambda x: countWords(nouns, x))
     df_data['premodadv'] = df_data['lemmas'].map(lambda x: countWords(premodadv, x))
-    df_data['style'] = df_data['text_clean'].map(lambda x: countWords(style, x))
+    df_data['style'] = df_data['text_clean'].map(lambda x: countWords(style, x))'''
+
+    #non language specific features
+
+    #df_data['number_of_commas'] = df_data['text_clean'].map(lambda x: countWords([','], x))
+    #df_data['number_of_question_marks'] = df_data['text_clean'].map(lambda x: countWords(['?'], x))
+    #df_data['number_of_dots'] = df_data['text_clean'].map(lambda x: countWords(['.'], x))
+    #df_data['number_of_exclamation_marks'] = df_data['text_clean'].map(lambda x: countWords(['!'], x))
+    df_data['number_of_emojis'] = df_data['text_clean'].map(lambda x: count_patterns(x, emoji_list))
+    df_data['sentiment'] = df_data['text_clean'].map(lambda x: get_sentiment(x, emoji_dict))
+    df_data['number_of_character_floods'] = df_data['no_punctuation'].map(lambda x: countCharacterFlooding(x))
+    #df_data['count_digits'] = df_data['text_clean'].map(lambda x: len(re.findall(r"([\d.]*\d+)", x)))
+    #df_data['count_currencies'] = df_data['text_clean'].map(lambda x: len(re.findall(r"[£$€]", x)))
+    #df_data['number_of_emoticons'] = df_data['text_clean'].map(lambda x: count_patterns(x, emoticons))
+    #df_data['number_of_mentions'] = df_data['text_clean'].map(lambda x: count_patterns(x, ['@MENTION']))
+    #df_data['number_of_urls'] = df_data['text_clean'].map(lambda x: count_patterns(x, ['HTTPURL']))
+    #df_data['number_of_hashtags'] = df_data['text_clean'].map(lambda x: count_patterns(x, ['#HASHTAG']))
+    #df_data['number_of_mentions_hashtags'] = df_data['text_clean'].map(lambda x: count_patterns(x, ['@MENTION', '#HASHTAG']))
 
     #network features
     #df_network = readNetworkFeatures()

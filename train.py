@@ -6,10 +6,10 @@ if __name__ == '__main__':
     # e.g. python3 main.py --create_model 'False' --input './pan17-author-profiling-training-dataset-2017-03-10' --output results
     # e.g. python3 main.py --create_model 'True' --input '/media/training-datasets/author-profiling/pan17-author-profiling-training-dataset-2017-03-10' --output results
     argparser = argparse.ArgumentParser(description='Author Profiling Evaluation')
-    argparser.add_argument('-l', '--language', dest='language', type=str, default='en',
+    argparser.add_argument('-l', '--language', dest='language', type=str, default='es',
                            help='Set language')
 
-    argparser.add_argument('-t', '--task', dest='task', type=str, default='gender',
+    argparser.add_argument('-t', '--task', dest='task', type=str, default='variety',
                            help='Set task')
 
     argparser.add_argument('-c', '--input', dest='input', type=str,
@@ -109,7 +109,7 @@ if __name__ == '__main__':
     tfidf_transformer = TfidfTransformer(sublinear_tf=True)
     tsvd = TruncatedSVD(random_state=2016, n_components=200, n_iter=5)
 
-    features = [   #('cst', digit_col()),
+    features = [   ('cst', digit_col()),
         ('unigram', pipeline.Pipeline([('s1', text_col(key='no_stopwords')), ('tfidf_unigram', tfidf_unigram)])),
         ('bigram', pipeline.Pipeline([('s2', text_col(key='no_punctuation')), ('tfidf_bigram', tfidf_bigram)])),
         # ('topics', pipeline.Pipeline([('s3', text_col(key='no_stopwords')), ('tfidf_topics', tfidf_topics), ('tsvd', tsvd)])),
@@ -118,12 +118,12 @@ if __name__ == '__main__':
             ('tfidf_character', tfidf_transformer)])),
         ('suffixes', pipeline.Pipeline([('s5', text_col(key='affixes')), ('tfidf_affixes', tfidf_affixes)])),
     ]
-    weights = {  #'cst': 0.2,
+    weights = {'cst': 0.3,
         'unigram': 0.8,
         'bigram': 0.1,
         #'topics': 0.1,
         'tag': 0.2,
-        'character': 0.9,
+        'character': 0.8,
         'suffixes': 0.4
     }
 
