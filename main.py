@@ -109,8 +109,8 @@ def readPANcorpus(path, lang, test=False):
             data.append([name, gender, variety, concatenated_text.strip()])
         else:
             print(name)
-    print(cntRT)
-    print('Number of Tweets: ', cntTweet)
+    #print(cntRT)
+    #print('Number of Tweets: ', cntTweet)
     if not test:
         #write to csv file
         with open('PAN_data_' + lang + '.csv', 'w') as fp:
@@ -344,7 +344,7 @@ class digit_col(BaseEstimator, TransformerMixin):
     def fit(self, x, y=None):
         return self
     def transform(self, hd_searches):
-        d_col_drops=['text', 'pos_tag', 'no_punctuation', 'no_stopwords', 'text_clean', 'lemmas', 'affixes']
+        d_col_drops=['text', 'pos_tag', 'no_punctuation', 'no_stopwords', 'text_clean', 'affixes']
         hd_searches = hd_searches.drop(d_col_drops,axis=1).values
         scaler = preprocessing.MinMaxScaler().fit(hd_searches)
         return scaler.transform(hd_searches)
@@ -384,7 +384,7 @@ def preprocess(df_data, lang, perceptron_tagger, sent_tokenizer, test=False):
     df_data['no_punctuation'] = df_data['text_clean'].map(lambda x: remove_punctuation(x))
     df_data['no_stopwords'] = df_data['no_punctuation'].map(lambda x: remove_stopwords(x))
     print('lemmatization')
-    df_data['lemmas'] = df_data['text_clean'].map(lambda x: lemmatize(x))
+    #df_data['lemmas'] = df_data['text_clean'].map(lambda x: lemmatize(x))
     df_data['text_clean'] = df_data['text_clean_r']
     df_data = df_data.drop('text_clean_r', 1)
     if not test:
@@ -404,7 +404,7 @@ def convertToUnicode(df_data):
     df_data['pos_tag'] = df_data['pos_tag'].map(lambda x: str(x))
     df_data['no_stopwords'] = df_data['no_stopwords'].map(lambda x: str(x))
     df_data['no_punctuation'] = df_data['no_punctuation'].map(lambda x: str(x))
-    df_data['lemmas'] = df_data['lemmas'].map(lambda x: str(x))
+    #df_data['lemmas'] = df_data['lemmas'].map(lambda x: str(x))
     return df_data
 
 emoji_dict = get_emojis('Emoji_Sentiment_Data_v1.0.csv')

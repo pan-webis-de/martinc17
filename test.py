@@ -37,8 +37,8 @@ if __name__ == '__main__':
 
 
         df_data = readPANcorpus(input, lang, test=True)
-        print("Language: ", lang)
-        print("Data shape: ", df_data.shape)
+        #print("Language: ", lang)
+        #print("Data shape: ", df_data.shape)
         df_data = preprocess(df_data, lang, perceptron_tagger, sent_tokenizer, test=True)
         df_data = convertToUnicode(df_data)
         df_data = createFeatures(df_data)
