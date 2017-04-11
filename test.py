@@ -36,7 +36,7 @@ if __name__ == '__main__':
                 sent_tokenizer = None
 
 
-        df_data = readPANcorpus(input, lang, test=True)[:100]
+        df_data = readPANcorpus(input, lang, test=True)
         print("Language: ", lang)
         print("Data shape: ", df_data.shape)
         df_data = preprocess(df_data, lang, perceptron_tagger, sent_tokenizer, test=True)

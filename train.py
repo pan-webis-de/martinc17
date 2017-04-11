@@ -6,10 +6,10 @@ if __name__ == '__main__':
     # e.g. python3 main.py --create_model 'False' --input './pan17-author-profiling-training-dataset-2017-03-10' --output results
     # e.g. python3 main.py --create_model 'True' --input '/media/training-datasets/author-profiling/pan17-author-profiling-training-dataset-2017-03-10' --output results
     argparser = argparse.ArgumentParser(description='Author Profiling Evaluation')
-    argparser.add_argument('-l', '--language', dest='language', type=str, default='es',
+    argparser.add_argument('-l', '--language', dest='language', type=str, default='pt',
                            help='Set language')
 
-    argparser.add_argument('-t', '--task', dest='task', type=str, default='variety',
+    argparser.add_argument('-t', '--task', dest='task', type=str, default='gender',
                            help='Set task')
 
     argparser.add_argument('-c', '--input', dest='input', type=str,
