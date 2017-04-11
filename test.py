@@ -51,6 +51,6 @@ if __name__ == '__main__':
         clf = joblib.load('models/svm_clf_' + lang + '_variety.pkl')
         y_pred_variety = clf.predict(X)
         df_results = pd.DataFrame({"id": id, "gender": y_pred_gender, "variety": y_pred_variety})
-        df_results.to_csv('results_' + lang + '.csv', index=False, header=True)
+        #df_results.to_csv('csv_files/results_' + lang + '.csv', index=False, header=True)
         for index, row in df_results.iterrows():
             generate_output(output, row['id'], lang, row['variety'], row['gender'])

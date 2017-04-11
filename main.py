@@ -112,7 +112,7 @@ def readPANcorpus(path, lang, test=False):
     #print('Number of Tweets: ', cntTweet)
     if not test:
         #write to csv file
-        with open('PAN_data_' + lang + '.csv', 'w') as fp:
+        with open('csv_files/PAN_data_' + lang + '.csv', 'w') as fp:
             a = csv.writer(fp, delimiter='\t')
             a.writerows(data)
     else:
@@ -382,12 +382,12 @@ def preprocess(df_data, lang, perceptron_tagger, sent_tokenizer, test=False):
     df_data['pos_tag'] = df_data['text_clean'].map(lambda x: tag(perceptron_tagger, x, sent_tokenizer))
     df_data['no_punctuation'] = df_data['text_clean'].map(lambda x: remove_punctuation(x))
     df_data['no_stopwords'] = df_data['no_punctuation'].map(lambda x: remove_stopwords(x))
-    print('lemmatization')
+    #print('lemmatization')
     #df_data['lemmas'] = df_data['text_clean'].map(lambda x: lemmatize(x))
     df_data['text_clean'] = df_data['text_clean_r']
     df_data = df_data.drop('text_clean_r', 1)
     if not test:
-        df_data.to_csv('PAN_data_' + lang + '_tagged.csv', sep='\t', encoding='utf-8', index=False)
+        df_data.to_csv('csv_files/PAN_data_' + lang + '_tagged.csv', sep='\t', encoding='utf-8', index=False)
         print("written to csv")
     print("--- Preprocessing ---", round(((time.time() - start_time) / 60), 2))
     return df_data
@@ -406,7 +406,7 @@ def convertToUnicode(df_data):
     #df_data['lemmas'] = df_data['lemmas'].map(lambda x: str(x))
     return df_data
 
-emoji_dict = get_emojis('Emoji_Sentiment_Data_v1.0.csv')
+emoji_dict = get_emojis('word_lists/Emoji_Sentiment_Data_v1.0.csv')
 emoji_list = emoji_dict.keys()
 
 #read wordlists
