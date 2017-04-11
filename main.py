@@ -38,7 +38,6 @@ import codecs
 import gc
 import argparse
 import nltk
-from network_features import readNetworkFeatures
 from itertools import groupby
 
 
