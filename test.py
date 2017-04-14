@@ -1,9 +1,10 @@
 from main import *
+import os
+import shutil
 
 if __name__ == '__main__':
     #run from command line
-    #e.g. python3 main.py --create_model 'False' --input './pan17-author-profiling-training-dataset-2017-03-10' --output results
-    #e.g. python3 main.py --create_model 'True' --input '/media/training-datasets/author-profiling/pan17-author-profiling-training-dataset-2017-03-10' --output results
+    #e.g. python3 main.py  --input './pan17-author-profiling-training-dataset-2017-03-10' --output results
     argparser = argparse.ArgumentParser(description='Author Profiling Evaluation')
     argparser.add_argument('-o', '--output', dest='output', type=str, default='./results',
                            help='Choose output directory')
@@ -35,7 +36,6 @@ if __name__ == '__main__':
             else:
                 sent_tokenizer = None
 
-
         df_data = readPANcorpus(input, lang, test=True)
         #print("Language: ", lang)
         #print("Data shape: ", df_data.shape)
@@ -52,5 +52,8 @@ if __name__ == '__main__':
         y_pred_variety = clf.predict(X)
         df_results = pd.DataFrame({"id": id, "gender": y_pred_gender, "variety": y_pred_variety})
         #df_results.to_csv('csv_files/results_' + lang + '.csv', index=False, header=True)
+        if os.path.exists(output + '/' + lang):
+            shutil.rmtree(output + '/' + lang)
+        os.makedirs(output + '/' + lang)
         for index, row in df_results.iterrows():
-            generate_output(output, row['id'], lang, row['variety'], row['gender'])
+            generate_output(output + '/' + lang, row['id'], lang, row['variety'], row['gender'])

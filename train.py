@@ -3,10 +3,9 @@ from network_features import readNetworkFeatures
 
 if __name__ == '__main__':
     # run from command line
-    # e.g. python3 main.py --create_model 'False' --input './pan17-author-profiling-training-dataset-2017-03-10' --output results
-    # e.g. python3 main.py --create_model 'True' --input '/media/training-datasets/author-profiling/pan17-author-profiling-training-dataset-2017-03-10' --output results
+    # e.g. python3 main.py --input './pan17-author-profiling-training-dataset-2017-03-10' --output results --language en
     argparser = argparse.ArgumentParser(description='Author Profiling Evaluation')
-    argparser.add_argument('-l', '--language', dest='language', type=str, default='pt',
+    argparser.add_argument('-l', '--language', dest='language', type=str, default='en',
                            help='Set language')
 
     argparser.add_argument('-t', '--task', dest='task', type=str, default='gender',
@@ -78,7 +77,6 @@ if __name__ == '__main__':
     print("Numeric features arranged by chi2 value - the other number is p-value")
     print(result_list)
 
-    # choose to predict either gender or age
     y = df_data[task].values
     X = df_data.drop(['gender', 'variety', 'id'], axis=1)
 
