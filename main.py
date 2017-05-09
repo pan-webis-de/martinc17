@@ -39,12 +39,15 @@ import gc
 import argparse
 import nltk
 from itertools import groupby
+#import gensim
+#from gensim.models.doc2vec import TaggedDocument
+#from experimentation import compress
 
 
 import resource
 rsrc = resource.RLIMIT_AS
 soft, hard = resource.getrlimit(rsrc)
-#resource.setrlimit(rsrc, (13500000000, hard)) #limit allowed Python memory usage to 13GB
+resource.setrlimit(rsrc, (13500000000, hard)) #limit allowed Python memory usage to 13GB
 
 start_time = time.time()
 lemmatizer = Lemmatizer(dictionary=lemmagen.DICTIONARY_ENGLISH)
@@ -257,22 +260,6 @@ def count_pos(pos_sequence, pos_list):
     return cnt/len(pos_sequence.split())
 
 
-#create noun pronoun ratio feature
-def noun_pronoun_ratio(text):
-    noun_words = ['NN', 'NNP', 'NNS', 'NNPS', 'IN', 'DT', 'CD']
-    pronoun_words = ['PRP', 'PRP$']
-    pronoun_words.extend(list(aux_verbs))
-    pronoun_words.extend(list(hedge_words))
-    cnt_noun = 0
-    cnt_pronoun = 0
-    for noun in noun_words:
-        cnt_noun += text.count(noun)
-    for pronoun in pronoun_words:
-        cnt_pronoun += text.count(pronoun)
-    if cnt_pronoun == 0:
-        return 0
-    return cnt_noun/cnt_pronoun
-
 
 #used for feature evaluation
 def most_informative_feature_for_class(vectorizer, classifier, n=40):
@@ -325,7 +312,84 @@ def count_error(text, chkr):
 
 
 def get_affix(text):
-    return " ".join([word[-4:] if len(word) >=4 else word for word in text.split()])
+    return " ".join([word[-4:] if len(word) >= 4 else word for word in text.split()])
+
+
+def get_prefix(text):
+    return " ".join([word[0:4] for word in text.split() if len(word) > 4])
+
+
+def mid_punct(text):
+    punct = '!"$%&()*+,-./:;<=>?[\]^_`{|}~'
+    ngrams = []
+    for i, character in enumerate(text[0:-3]):
+        ngram = text[i:i+4]
+        if ngram[0] not in punct and ngram[-1] not in punct:
+            for p in punct:
+                if p in ngram[1:4]:
+                    #print(ngram)
+                    ngrams.append(ngram)
+                    break
+    return " ".join(ngrams)
+
+
+def makeDocVecFeatures(text, model, sent_tokenizer, num_features=300):
+    tokens = sent_tokenizer.tokenize(str(text))
+    tokens = [word for sent in tokens for word in word_tokenize(sent)]
+    # Function to average all of the word vectors in a given
+    # paragraph
+    #
+    # Pre-initialize an empty numpy array (for speed)
+    featureVec = np.zeros((num_features,),dtype="float32")
+    #
+    nwords = 0.
+    #
+    # Index2word is a list that contains the names of the words in
+    # the model's vocabulary. Convert it to a set, for speed
+    index2word_set = set(model.index2word)
+    #
+    # Loop over each word in the review and, if it is in the model's
+    # vocaublary, add its feature vector to the total
+    for word in tokens:
+        if word in index2word_set:
+            nwords = nwords + 1.
+            featureVec = np.add(featureVec,model[word])
+    #
+    # Divide the result by the number of words to get the average
+    featureVec = np.divide(featureVec,nwords)
+    return featureVec
+
+def create_tf_idf_dict(df_data):
+    vectorizer = TfidfVectorizer(min_df=1)
+    X = vectorizer.fit_transform(df_data['text_clean'].tolist())
+    idf = vectorizer.idf_
+    print
+    return dict(zip(vectorizer.get_feature_names(), idf))
+
+
+'''def create_word2vec_model(df_data, sent_tokenizer, lang, num_features=300):
+    if not isfile('w2v_' + lang + '.model'):
+        all_docs = df_data['text_clean'].tolist()
+        text = " ".join(all_docs)
+        tokens = sent_tokenizer.tokenize(str(text))
+        tokens = [word_tokenize(token) for token in tokens]
+        model = gensim.models.Word2Vec(tokens, size=num_features, window=20, min_count=40, workers=11, sample = 1e-3)
+        model.save('doc2vec_' + lang + '.model')
+    else:
+        model = gensim.models.Doc2Vec.load('doc2vec_' + lang + '.model')
+    return model'''
+
+
+def get_ngrams(text):
+    ngrams = []
+    for word in text.split():
+        if len(word) > 4:
+            for i in range(len(word) - 3):
+                ngrams.append(word[i:i + 4])
+        else :
+            ngrams.append(word)
+    print(ngrams)
+    return " ".join(ngrams)
 
 
 #fit and transform text features, used in scikit Feature union
@@ -343,10 +407,25 @@ class digit_col(BaseEstimator, TransformerMixin):
     def fit(self, x, y=None):
         return self
     def transform(self, hd_searches):
-        d_col_drops=['text', 'pos_tag', 'no_punctuation', 'no_stopwords', 'text_clean', 'affixes']
+        d_col_drops=['text', 'lemmas', 'pos_tag', 'no_punctuation', 'no_stopwords', 'text_clean', 'affixes', 'mid_punct']
         hd_searches = hd_searches.drop(d_col_drops,axis=1).values
         scaler = preprocessing.MinMaxScaler().fit(hd_searches)
         return scaler.transform(hd_searches)
+
+
+# fit and transform w2v features, used in scikit Feature union
+class w2v_col(BaseEstimator, TransformerMixin):
+    def __init__(self, key):
+        self.key = key
+    def fit(self, x, y=None):
+        return self
+    def transform(self, data_dict):
+        hd_searches = data_dict[self.key]
+        hd_searches = [x.tolist() for x in hd_searches]
+        #hd_searches = hd_searches.values
+        scaler = preprocessing.MinMaxScaler().fit(hd_searches)
+        return scaler.transform(hd_searches)
+
 
 #needed so xgboost doesn't crash
 class CSCTransformer(TransformerMixin):
@@ -406,45 +485,52 @@ def convertToUnicode(df_data):
     #df_data['lemmas'] = df_data['lemmas'].map(lambda x: str(x))
     return df_data
 
-emoji_dict = get_emojis('word_lists/Emoji_Sentiment_Data_v1.0.csv')
-emoji_list = emoji_dict.keys()
-
-#read wordlists
-emoticons = ['<3', ':D', ':)', ':(', ':>)', ':-)', ':]', '=)', '-(' ':[', '=(', ';)', ';-)', ':-P', ':P', ':-p', ':p', '=P', ':-O', ':O', ':-o', ':o']
-amplifiers = read_wordList('word_lists/amplifier.txt')
-aux_verbs = read_wordList('word_lists/aux_verb.txt')
-cognition_verbs = read_wordList('word_lists/cognition_verb.txt')
-communication_verbs = read_wordList('word_lists/communication_verb.txt')
-modal_verbs = read_wordList('word_lists/modal_verb.txt')
-negations = read_wordList('word_lists/negation.txt')
-fp_pronouns = read_wordList('word_lists/firstperson_pronoun.txt')
-functions = read_wordList('word_lists/function.txt')
-hedge_words = read_wordList('word_lists/hedge_word.txt')
-social_words = read_wordList('word_lists/social.txt')
-swear_words = read_wordList('word_lists/swear_word.txt')
-wh_words = read_wordList('word_lists/wh_word.txt')
-
-#bieberList
-ability = read_wordList('Biber_simple/Ability_biber.txt')
-attitude = read_wordList('Biber_simple/AttituteEmotion_biber.txt')
-causation = read_wordList('Biber_simple/CausationModalityEffort_biber.txt')
-certainty = read_wordList('Biber_simple/Certainty_biber.txt')
-cognition = read_wordList('Biber_simple/Cognition_biber.txt')
-communication = read_wordList('Biber_simple/Communication_biber.txt')
-desiredecision = read_wordList('Biber_simple/DesireDecision_biber.txt')
-easedifficulty = read_wordList('Biber_simple/EaseDifficulty_biber.txt')
-evaluation = read_wordList('Biber_simple/Evaluation_biber.txt')
-likelihood = read_wordList('Biber_simple/Likelihood_biber.txt')
-necessity = read_wordList('Biber_simple/ModalNecessity_biber.txt')
-possibility = read_wordList('Biber_simple/ModalPossiblity_biber.txt')
-prediction = read_wordList('Biber_simple/ModalPrediction.txt')
-nouns = read_wordList('Biber_simple/Nouns_various.txt')
-premodadv = read_wordList('Biber_simple/PremodAdv_biber.txt')
-style = read_wordList('Biber_simple/Stlye_biber.txt')
 
 
-def createFeatures(df_data):
+def createFeatures(df_data, sent_tokenizer, lang):
+    emoji_dict = get_emojis('word_lists/Emoji_Sentiment_Data_v1.0.csv')
+    emoji_list = emoji_dict.keys()
+    #model = create_word2vec_model(df_data, sent_tokenizer, lang)
+
+
+    # read wordlists
+    '''emoticons = ['<3', ':D', ':)', ':(', ':>)', ':-)', ':]', '=)', '-(' ':[', '=(', ';)', ';-)', ':-P', ':P', ':-p',
+                 ':p', '=P', ':-O', ':O', ':-o', ':o']
+    amplifiers = read_wordList('word_lists/amplifier.txt')
+    aux_verbs = read_wordList('word_lists/aux_verb.txt')
+    cognition_verbs = read_wordList('word_lists/cognition_verb.txt')
+    communication_verbs = read_wordList('word_lists/communication_verb.txt')
+    modal_verbs = read_wordList('word_lists/modal_verb.txt')
+    negations = read_wordList('word_lists/negation.txt')
+    fp_pronouns = read_wordList('word_lists/firstperson_pronoun.txt')
+    functions = read_wordList('word_lists/function.txt')
+    hedge_words = read_wordList('word_lists/hedge_word.txt')
+    social_words = read_wordList('word_lists/social.txt')
+    swear_words = read_wordList('word_lists/swear_word.txt')
+    wh_words = read_wordList('word_lists/wh_word.txt')
+
+    # bieberList
+    ability = read_wordList('Biber_simple/Ability_biber.txt')
+    attitude = read_wordList('Biber_simple/AttituteEmotion_biber.txt')
+    causation = read_wordList('Biber_simple/CausationModalityEffort_biber.txt')
+    certainty = read_wordList('Biber_simple/Certainty_biber.txt')
+    cognition = read_wordList('Biber_simple/Cognition_biber.txt')
+    communication = read_wordList('Biber_simple/Communication_biber.txt')
+    desiredecision = read_wordList('Biber_simple/DesireDecision_biber.txt')
+    easedifficulty = read_wordList('Biber_simple/EaseDifficulty_biber.txt')
+    evaluation = read_wordList('Biber_simple/Evaluation_biber.txt')
+    likelihood = read_wordList('Biber_simple/Likelihood_biber.txt')
+    necessity = read_wordList('Biber_simple/ModalNecessity_biber.txt')
+    possibility = read_wordList('Biber_simple/ModalPossiblity_biber.txt')
+    prediction = read_wordList('Biber_simple/ModalPrediction.txt')
+    nouns = read_wordList('Biber_simple/Nouns_various.txt')
+    premodadv = read_wordList('Biber_simple/PremodAdv_biber.txt')
+    style = read_wordList('Biber_simple/Stlye_biber.txt')'''
+
+
     df_data['affixes'] = df_data['text_clean'].map(lambda x: get_affix(x))
+    df_data['mid_punct'] = df_data['text_clean'].map(lambda x: mid_punct(x))
+    #df_data['prefixes'] = df_data['text_clean'].map(lambda x: get_prefix(x))
 
     # word and POS tag lists
     '''df_data['amplifiers'] = df_data['text_clean'].map(lambda x: countWords(amplifiers,x))
@@ -464,7 +550,6 @@ def createFeatures(df_data):
     df_data['social_words'] = df_data['text_clean'].map(lambda x: countWords(social_words, x))
     df_data['swear_words'] = df_data['text_clean'].map(lambda x: countWords(swear_words, x))
     df_data['number_of_errors'] = df_data['text_clean'].map(lambda x: count_error(x,chkr))
-    df_data['noun_pronoun_ratio'] = (df_data['text_clean'] + " " + df_data['pos_tag']).map(lambda x: noun_pronoun_ratio(x))
 
     #biber
     df_data['necessity'] = df_data['lemmas'].map(lambda x: countWords(necessity, x))
@@ -490,9 +575,17 @@ def createFeatures(df_data):
     #df_data['number_of_question_marks'] = df_data['text_clean'].map(lambda x: countWords(['?'], x))
     #df_data['number_of_dots'] = df_data['text_clean'].map(lambda x: countWords(['.'], x))
     #df_data['number_of_exclamation_marks'] = df_data['text_clean'].map(lambda x: countWords(['!'], x))
+    #df_data['number_of_punct'] = df_data['text_clean'].map(lambda x: countWords(['!', ',', '?', '.'], x))
+    #df_data['unique_words'] = df_data['text_clean'].map(lambda x: len(set(x.split()))/len(x.split()))
+    #df_data['text_length'] = df_data['text_clean'].map(lambda x: len(x.split()))
     df_data['number_of_emojis'] = df_data['text_clean'].map(lambda x: count_patterns(x, emoji_list))
     df_data['sentiment'] = df_data['text_clean'].map(lambda x: get_sentiment(x, emoji_dict))
     df_data['number_of_character_floods'] = df_data['no_punctuation'].map(lambda x: countCharacterFlooding(x))
+    #df_data['w2v'] = df_data['text_clean'].map(lambda x: makeDocVecFeatures(x, model, sent_tokenizer))
+
+    #df_data['text_clean'] = df_data['text_clean'].map(lambda x: compress(x))
+    #df_data['no_stopwords'] = df_data['no_stopwords'].map(lambda x: compress(x))
+    #df_data['no_punctuation'] = df_data['no_punctuation'].map(lambda x: compress(x))
     #df_data['count_digits'] = df_data['text_clean'].map(lambda x: len(re.findall(r"([\d.]*\d+)", x)))
     #df_data['count_currencies'] = df_data['text_clean'].map(lambda x: len(re.findall(r"[£$€]", x)))
     #df_data['number_of_emoticons'] = df_data['text_clean'].map(lambda x: count_patterns(x, emoticons))
