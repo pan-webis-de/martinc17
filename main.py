@@ -96,8 +96,8 @@ def readPANcorpus(path, lang, test=False):
             variety = 'undefined'
         concatenated_text = ""
         for document in root.iter('document'):
+            cntTweet += 1
             if document.text:
-                cntTweet += 1
                 txt = beautify(document.text)
                 if lang == 'en' and find_garbage_rate(txt, chkr) > 0.9:
                         pass
@@ -112,7 +112,7 @@ def readPANcorpus(path, lang, test=False):
         else:
             print(name)
     #print(cntRT)
-    #print('Number of Tweets: ', cntTweet)
+    print('Number of Tweets: ', cntTweet)
     if not test:
         #write to csv file
         with open('csv_files/PAN_data_' + lang + '.csv', 'w') as fp:
@@ -160,7 +160,15 @@ def remove_punctuation(text):
     return text
 
 
-def remove_stopwords(text):
+def remove_stopwords(text, lang):
+    if lang == 'es':
+        stops = set(stopwords.words("spanish"))
+    elif lang == 'en':
+        stops = set(stopwords.words("english"))
+    elif lang == 'pt':
+        stops = set(stopwords.words("portuguese"))
+    else:
+        return text
     text = text.split()
     stops = set(stopwords.words("english"))
     text = [x.lower() for x in text if x.lower() not in stops]
@@ -319,21 +327,24 @@ def get_prefix(text):
     return " ".join([word[0:4] for word in text.split() if len(word) > 4])
 
 
-def mid_punct(text):
+def affix_punct(text):
     punct = '!"$%&()*+,-./:;<=>?[\]^_`{|}~'
     ngrams = []
-    for i, character in enumerate(text[0:-3]):
-        ngram = text[i:i+4]
-        if ngram[0] not in punct and ngram[-1] not in punct:
+    for i, character in enumerate(text[0:-2]):
+        ngram = text[i:i+3]
+        if ngram[0]  in punct:
             for p in punct:
-                if p in ngram[1:4]:
-                    #print(ngram)
-                    ngrams.append(ngram)
+                if p in ngram[1:]:
                     break
-    return " ".join(ngrams)
+            else:
+                ngrams.append(ngram)
+    return "###".join(ngrams)
 
+def affix_punct_tokenize(text):
+    tokens = text.split('###')
+    return tokens
 
-def makeDocVecFeatures(text, model, sent_tokenizer, num_features=300):
+'''def makeDocVecFeatures(text, model, sent_tokenizer, num_features=300):
     tokens = sent_tokenizer.tokenize(str(text))
     tokens = [word for sent in tokens for word in word_tokenize(sent)]
     # Function to average all of the word vectors in a given
@@ -359,15 +370,8 @@ def makeDocVecFeatures(text, model, sent_tokenizer, num_features=300):
     featureVec = np.divide(featureVec,nwords)
     return featureVec
 
-def create_tf_idf_dict(df_data):
-    vectorizer = TfidfVectorizer(min_df=1)
-    X = vectorizer.fit_transform(df_data['text_clean'].tolist())
-    idf = vectorizer.idf_
-    print
-    return dict(zip(vectorizer.get_feature_names(), idf))
 
-
-'''def create_word2vec_model(df_data, sent_tokenizer, lang, num_features=300):
+def create_word2vec_model(df_data, sent_tokenizer, lang, num_features=300):
     if not isfile('w2v_' + lang + '.model'):
         all_docs = df_data['text_clean'].tolist()
         text = " ".join(all_docs)
@@ -407,7 +411,7 @@ class digit_col(BaseEstimator, TransformerMixin):
     def fit(self, x, y=None):
         return self
     def transform(self, hd_searches):
-        d_col_drops=['text', 'lemmas', 'pos_tag', 'no_punctuation', 'no_stopwords', 'text_clean', 'affixes', 'mid_punct']
+        d_col_drops=['text', 'pos_tag', 'no_punctuation', 'no_stopwords', 'text_clean', 'affixes', 'affix_punct']
         hd_searches = hd_searches.drop(d_col_drops,axis=1).values
         scaler = preprocessing.MinMaxScaler().fit(hd_searches)
         return scaler.transform(hd_searches)
@@ -452,15 +456,12 @@ def preprocess(df_data, lang, perceptron_tagger, sent_tokenizer, test=False):
     df_data['text_clean'] = df_data['text'].map(lambda x: remove_hashtags(x, ''))
     df_data['text_clean'] = df_data['text_clean'].map(lambda x: remove_url(x, ""))
     df_data['text_clean'] = df_data['text_clean'].map(lambda x: remove_mentions(x, ''))
-    print('tagging')
 
-    df_data['text_clean'] = df_data['text'].map(lambda x: remove_hashtags(x, ''))
-    df_data['text_clean'] = df_data['text_clean'].map(lambda x: remove_url(x, ''))
-    df_data['text_clean'] = df_data['text_clean'].map(lambda x: remove_mentions(x, ''))
+    print('tagging')
 
     df_data['pos_tag'] = df_data['text_clean'].map(lambda x: tag(perceptron_tagger, x, sent_tokenizer))
     df_data['no_punctuation'] = df_data['text_clean'].map(lambda x: remove_punctuation(x))
-    df_data['no_stopwords'] = df_data['no_punctuation'].map(lambda x: remove_stopwords(x))
+    df_data['no_stopwords'] = df_data['no_punctuation'].map(lambda x: remove_stopwords(x, lang))
     #print('lemmatization')
     #df_data['lemmas'] = df_data['text_clean'].map(lambda x: lemmatize(x))
     df_data['text_clean'] = df_data['text_clean_r']
@@ -529,7 +530,7 @@ def createFeatures(df_data, sent_tokenizer, lang):
 
 
     df_data['affixes'] = df_data['text_clean'].map(lambda x: get_affix(x))
-    df_data['mid_punct'] = df_data['text_clean'].map(lambda x: mid_punct(x))
+    df_data['affix_punct'] = df_data['text_clean'].map(lambda x: affix_punct(x))
     #df_data['prefixes'] = df_data['text_clean'].map(lambda x: get_prefix(x))
 
     # word and POS tag lists

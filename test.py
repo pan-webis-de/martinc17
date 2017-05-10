@@ -19,7 +19,7 @@ if __name__ == '__main__':
     input = args.input
 
     #train taggers
-    for lang in ['ar', 'en', 'es', 'pt']:
+    for lang in ['pt', 'es', 'en', 'ar']:
         if lang == 'en':
             sent_tokenizer = nltk.data.load('tokenizers/punkt/english.pickle')
             perceptron_tagger = PerceptronTagger()
@@ -37,18 +37,17 @@ if __name__ == '__main__':
                 sent_tokenizer = None
 
         df_data = readPANcorpus(input, lang, test=True)
-        #print("Language: ", lang)
-        #print("Data shape: ", df_data.shape)
+        print("Language: ", lang)
         df_data = preprocess(df_data, lang, perceptron_tagger, sent_tokenizer, test=True)
         df_data = convertToUnicode(df_data)
-        df_data = createFeatures(df_data)
-
+        df_data = createFeatures(df_data, sent_tokenizer, lang)
+        print("Data shape: ", df_data.shape)
         #test model
         id = df_data['id']
         X = df_data.drop(['gender', 'variety', 'id'], axis=1)
-        clf = joblib.load('models/svm_clf_' + lang + '_gender.pkl')
+        clf = joblib.load('models/lr_clf_' + lang + '_gender.pkl')
         y_pred_gender = clf.predict(X)
-        clf = joblib.load('models/svm_clf_' + lang + '_variety.pkl')
+        clf = joblib.load('models/lr_clf_' + lang + '_variety.pkl')
         y_pred_variety = clf.predict(X)
         df_results = pd.DataFrame({"id": id, "gender": y_pred_gender, "variety": y_pred_variety})
         #df_results.to_csv('csv_files/results_' + lang + '.csv', index=False, header=True)

@@ -8,7 +8,7 @@ if __name__ == '__main__':
     argparser.add_argument('-l', '--language', dest='language', type=str, default='en',
                            help='Set language')
 
-    argparser.add_argument('-t', '--task', dest='task', type=str, default='variety',
+    argparser.add_argument('-t', '--task', dest='task', type=str, default='gender',
                            help='Set task')
 
     argparser.add_argument('-c', '--input', dest='input', type=str,
@@ -40,10 +40,10 @@ if __name__ == '__main__':
             sent_tokenizer = None
 
     # uncomment this section if you want to read train sets from original file
-    #df_data = readPANcorpus(input, lang)
-    #df_data = pd.read_csv('csv_files/PAN_data_' + lang + '.csv', encoding="utf-8", delimiter="\t")
-    #print("Data shape: ", df_data.shape)
-    #df_data = preprocess(df_data, lang, perceptron_tagger, sent_tokenizer)
+    df_data = readPANcorpus(input, lang)
+    df_data = pd.read_csv('csv_files/PAN_data_' + lang + '.csv', encoding="utf-8", delimiter="\t")
+    print("Data shape: ", df_data.shape)
+    df_data = preprocess(df_data, lang, perceptron_tagger, sent_tokenizer)
 
     # uncomment this to read  data from csv
     data_iterator = pd.read_csv('csv_files/PAN_data_' + lang + '_tagged.csv', encoding="utf-8", delimiter="\t", chunksize=1000)
@@ -57,15 +57,15 @@ if __name__ == '__main__':
 
     # shuffle the corpus and optionaly choose the chunk you want to use if you don't want to use the whole thing - will be much faster
     #df_data = df_data.reindex(np.random.seed(42))
-    #df_data = df_data[:1000]
+    #df_data = df_data[:100]
 
     df_data = convertToUnicode(df_data)
     df_data = createFeatures(df_data, sent_tokenizer, lang)
-    #get_stats(df_data, lang)
-
+    get_stats(df_data, lang)
+    print("Data shape: ", df_data.shape)
     # numeric feature evaluation
     X_eval = df_data.drop(
-        ['gender', 'variety', 'text', 'pos_tag', 'no_punctuation', 'no_stopwords', 'text_clean', 'lemmas', 'affixes', 'mid_punct', 'id'], axis=1)
+        ['gender', 'variety', 'text', 'pos_tag', 'no_punctuation', 'no_stopwords', 'text_clean', 'affixes', 'affix_punct', 'id'], axis=1)
     column_names = X_eval.columns.values
     minmax_scale = preprocessing.MinMaxScaler().fit(X_eval)
     X_eval = minmax_scale.transform(X_eval)
@@ -80,11 +80,6 @@ if __name__ == '__main__':
     y = df_data[task].values
     X = df_data.drop(['gender', 'variety', 'id'], axis=1)
 
-    #zusammen nehmen gender und variety
-    #df_data['variety_gender'] = df_data['gender'] + "_" + df_data['variety']
-    #y = df_data['variety_gender'].values
-    #X = df_data.drop(['gender', 'variety', 'id', 'variety_gender'], axis=1)
-
     # other feature evaluation
     mnb = MultinomialNB()
     tfidf = TfidfVectorizer(ngram_range=(3, 3), lowercase=False)
@@ -93,15 +88,15 @@ if __name__ == '__main__':
     #most_informative_feature_for_class(tfidf, mnb)
 
     # build classification model
-    svm = SVC(decision_function_shape='ovr', C=1.0, kernel="linear", probability=True)
-    lsvm = LinearSVC(penalty='l2', multi_class='ovr', fit_intercept=False, C=1.0)
+    #svm = SVC(decision_function_shape='ovr', C=1.0, kernel="linear", probability=True)
+    #lsvm = LinearSVC(penalty='l2', multi_class='ovr', fit_intercept=False, C=1.0)
     lr = LogisticRegression(C=1e2, multi_class='ovr', solver='liblinear', fit_intercept=False, random_state=123)
-    rfc = RandomForestClassifier(random_state=2016, n_estimators=200, max_depth=15)
-    eclf = VotingClassifier(estimators=[('lr', lr), ('svm', lsvm)], voting="hard")
-    bclf = BaggingClassifier(base_estimator=svm, random_state=2016, max_samples=0.7, max_features=0.7, n_estimators=100)
-    xgb = xgb.XGBClassifier(max_depth=5, subsample=0.8, n_estimators=1000, min_child_weight=1, colsample_bytree=0.8,
-                            learning_rate=1, nthread=8)
-    baseline = DummyClassifier(strategy='most_frequent')
+    #rfc = RandomForestClassifier(random_state=2016, n_estimators=200, max_depth=15)
+    #eclf = VotingClassifier(estimators=[('lr', lr), ('svm', lsvm)], voting="hard")
+    #bclf = BaggingClassifier(base_estimator=svm, random_state=2016, max_samples=0.7, max_features=0.7, n_estimators=100)
+    #xgb = xgb.XGBClassifier(max_depth=5, subsample=0.8, n_estimators=1000, min_child_weight=1, colsample_bytree=0.8,
+    #                        learning_rate=1, nthread=8)
+
     tfidf_unigram = TfidfVectorizer(ngram_range=(1, 1), sublinear_tf=True, min_df=10, max_df=0.8)
     tfidf_bigram = TfidfVectorizer(ngram_range=(2, 2), sublinear_tf=False, min_df=20, max_df=0.5)
     tfidf_topics = TfidfVectorizer(ngram_range=(1, 1), sublinear_tf=False, min_df=1, max_df=0.5)
@@ -111,6 +106,7 @@ if __name__ == '__main__':
     tfidf_ngram = TfidfVectorizer(ngram_range=(1, 1), sublinear_tf=True, min_df=0.1, max_df=0.8)
     tfidf_transformer = TfidfTransformer(sublinear_tf=True)
     tsvd = TruncatedSVD(random_state=2016, n_components=200, n_iter=5)
+    tfidf_affix_punct = TfidfVectorizer(ngram_range=(1, 1), sublinear_tf=True, min_df=0.1, max_df=0.8, tokenizer=affix_punct_tokenize)
 
     features = [('cst', digit_col()),
         ('unigram', pipeline.Pipeline([('s1', text_col(key='no_stopwords')), ('tfidf_unigram', tfidf_unigram)])),
@@ -120,7 +116,7 @@ if __name__ == '__main__':
         ('character', pipeline.Pipeline([('s5', text_col(key='text_clean')), ('character_vectorizer', character_vectorizer),
             ('tfidf_character', tfidf_transformer)])),
         ('affixes', pipeline.Pipeline([('s5', text_col(key='affixes')), ('tfidf_ngram', tfidf_ngram)])),
-        ('mid_punct', pipeline.Pipeline([('s5', text_col(key='mid_punct')), ('tfidf_ngram', tfidf_ngram)])),
+        ('affix_punct', pipeline.Pipeline([('s5', text_col(key='affix_punct')), ('tfidf_affix_punct', tfidf_affix_punct)])),
         #('w2v', pipeline.Pipeline([('s5', w2v_col(key='w2v'))])),
     ]
     weights = {'cst': 0.3,
@@ -128,9 +124,9 @@ if __name__ == '__main__':
         'bigram': 0.1,
         #'topics': 0.1,
         'tag': 0.2,
-        'character': 0.8, #0.8274
-        'affixes': 0.3,
-        'mid_punct': 0.2,
+        'character': 0.8,
+        'affixes': 0.4,
+        'affix_punct': 0.1,
         #'w2v':0.1,
     }
 
@@ -145,13 +141,13 @@ if __name__ == '__main__':
             n_jobs=1
         )),
         ('scale', Normalizer()),
-        ('svm', lr)])
+        ('lr', lr)])
     kfold = model_selection.KFold(n_splits=10, random_state=2016)
     results = model_selection.cross_val_score(clf, X, y, cv=kfold, verbose=20)
     print("CV score:")
     print(results.mean())
 
     clf.fit(X, y)
-    joblib.dump(clf, 'models/svm_clf_' + lang + '_' + task + '.pkl')
+    joblib.dump(clf, 'models/lr_clf_' + lang + '_' + task + '.pkl')
     print("--- Model creation in minutes ---", round(((time.time() - start_time) / 60), 2))
     print("--- Training & Testing in minutes ---", round(((time.time() - start_time) / 60), 2))
