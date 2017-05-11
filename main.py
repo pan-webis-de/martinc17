@@ -53,6 +53,16 @@ start_time = time.time()
 lemmatizer = Lemmatizer(dictionary=lemmagen.DICTIONARY_ENGLISH)
 chkr = SpellChecker("en_US")
 
+def variety_words():
+    l_us = read_wordList('word_lists/en_US.dic')
+    l_ca = read_wordList('word_lists/en_CA.dic')
+    l_au = read_wordList('word_lists/en_AU.dic')
+    l_all = l_us & l_ca & l_au
+    l_just_us = l_us - l_all
+    l_just_ca = l_ca - l_all
+    l_just_au = l_au - l_all
+    return (l_just_us, l_just_ca, l_just_au)
+
 
 def generate_output(path, author_id, lang, variety, gender):
     root = ET.Element("author")
@@ -99,6 +109,8 @@ def readPANcorpus(path, lang, test=False):
             cntTweet += 1
             if document.text:
                 txt = beautify(document.text)
+                if lang == 'ar':
+                    txt = txt[::-1]
                 if lang == 'en' and find_garbage_rate(txt, chkr) > 0.9:
                         pass
                 elif document.text.startswith("RT "):
@@ -127,7 +139,7 @@ def readPANcorpus(path, lang, test=False):
 #read different word lists and return a set of words
 def read_wordList(file):
     with open(file, 'r') as f:
-        return set([word.split('\t')[0].strip() for word in f if word])
+        return set([word.split('/')[0].strip().lower() for word in f if word])
 
 
 #remove html tags, used in PAN corpora
@@ -199,11 +211,13 @@ def tag(tagger, text, sent_tokenize):
     text = tagger.tag_sents(tokens)
     return " ".join(tag for sent in text for word, tag in sent)
 
+
 def simplify_tag(t):
     if "+" in t:
         return t[t.index("+")+1:]
     else:
         return t
+
 
 def get_emojis(path):
     emoji_dict = {}
@@ -232,7 +246,7 @@ def countWords(wordList, text):
     cnt = 0
     length = len(text.split())
     for word in text.split():
-        if word in wordList:
+        if word.lower() in wordList:
             cnt +=1
     if length == 0:
         return 0
@@ -488,7 +502,7 @@ def convertToUnicode(df_data):
 
 
 
-def createFeatures(df_data, sent_tokenizer, lang):
+def createFeatures(df_data, sent_tokenizer, lang, task):
     emoji_dict = get_emojis('word_lists/Emoji_Sentiment_Data_v1.0.csv')
     emoji_list = emoji_dict.keys()
     #model = create_word2vec_model(df_data, sent_tokenizer, lang)
@@ -569,6 +583,13 @@ def createFeatures(df_data, sent_tokenizer, lang):
     df_data['nouns'] = df_data['lemmas'].map(lambda x: countWords(nouns, x))
     df_data['premodadv'] = df_data['lemmas'].map(lambda x: countWords(premodadv, x))
     df_data['style'] = df_data['text_clean'].map(lambda x: countWords(style, x))'''
+
+    if lang == 'en' and task == 'variety':
+        us, ca, au = variety_words()
+        df_data['us'] = df_data['text_clean'].map(lambda x: countWords(us, x))
+        df_data['ca'] = df_data['text_clean'].map(lambda x: countWords(ca, x))
+        df_data['au'] = df_data['text_clean'].map(lambda x: countWords(au, x))
+
 
     #non language specific features
 

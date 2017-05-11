@@ -8,7 +8,7 @@ if __name__ == '__main__':
     argparser.add_argument('-l', '--language', dest='language', type=str, default='en',
                            help='Set language')
 
-    argparser.add_argument('-t', '--task', dest='task', type=str, default='gender',
+    argparser.add_argument('-t', '--task', dest='task', type=str, default='variety',
                            help='Set task')
 
     argparser.add_argument('-c', '--input', dest='input', type=str,
@@ -40,10 +40,10 @@ if __name__ == '__main__':
             sent_tokenizer = None
 
     # uncomment this section if you want to read train sets from original file
-    df_data = readPANcorpus(input, lang)
-    df_data = pd.read_csv('csv_files/PAN_data_' + lang + '.csv', encoding="utf-8", delimiter="\t")
-    print("Data shape: ", df_data.shape)
-    df_data = preprocess(df_data, lang, perceptron_tagger, sent_tokenizer)
+    #df_data = readPANcorpus(input, lang)
+    #df_data = pd.read_csv('csv_files/PAN_data_' + lang + '.csv', encoding="utf-8", delimiter="\t")
+    #print("Data shape: ", df_data.shape)
+    #df_data = preprocess(df_data, lang, perceptron_tagger, sent_tokenizer)
 
     # uncomment this to read  data from csv
     data_iterator = pd.read_csv('csv_files/PAN_data_' + lang + '_tagged.csv', encoding="utf-8", delimiter="\t", chunksize=1000)
@@ -60,7 +60,7 @@ if __name__ == '__main__':
     #df_data = df_data[:100]
 
     df_data = convertToUnicode(df_data)
-    df_data = createFeatures(df_data, sent_tokenizer, lang)
+    df_data = createFeatures(df_data, sent_tokenizer, lang, task)
     get_stats(df_data, lang)
     print("Data shape: ", df_data.shape)
     # numeric feature evaluation
@@ -93,16 +93,18 @@ if __name__ == '__main__':
     lr = LogisticRegression(C=1e2, multi_class='ovr', solver='liblinear', fit_intercept=False, random_state=123)
     #rfc = RandomForestClassifier(random_state=2016, n_estimators=200, max_depth=15)
     #eclf = VotingClassifier(estimators=[('lr', lr), ('svm', lsvm)], voting="hard")
-    #bclf = BaggingClassifier(base_estimator=svm, random_state=2016, max_samples=0.7, max_features=0.7, n_estimators=100)
+    bclf = BaggingClassifier(base_estimator=lr, random_state=2016, max_samples=0.7, max_features=0.7, n_estimators=100)
     #xgb = xgb.XGBClassifier(max_depth=5, subsample=0.8, n_estimators=1000, min_child_weight=1, colsample_bytree=0.8,
     #                        learning_rate=1, nthread=8)
 
     tfidf_unigram = TfidfVectorizer(ngram_range=(1, 1), sublinear_tf=True, min_df=10, max_df=0.8)
     tfidf_bigram = TfidfVectorizer(ngram_range=(2, 2), sublinear_tf=False, min_df=20, max_df=0.5)
-    tfidf_topics = TfidfVectorizer(ngram_range=(1, 1), sublinear_tf=False, min_df=1, max_df=0.5)
     tfidf_pos = TfidfVectorizer(ngram_range=(2, 2), sublinear_tf=True, min_df=0.1, max_df=0.6, lowercase=False)
     character_vectorizer = CountVectorizer(analyzer='char_wb', ngram_range=(4, 4), lowercase=False, min_df=4,
                                            max_df=0.8)
+
+    bigram_vectorizer = CountVectorizer(analyzer='char', ngram_range=(1, 2), lowercase=False, min_df=4, max_df=0.8)
+
     tfidf_ngram = TfidfVectorizer(ngram_range=(1, 1), sublinear_tf=True, min_df=0.1, max_df=0.8)
     tfidf_transformer = TfidfTransformer(sublinear_tf=True)
     tsvd = TruncatedSVD(random_state=2016, n_components=200, n_iter=5)
@@ -111,23 +113,19 @@ if __name__ == '__main__':
     features = [('cst', digit_col()),
         ('unigram', pipeline.Pipeline([('s1', text_col(key='no_stopwords')), ('tfidf_unigram', tfidf_unigram)])),
         ('bigram', pipeline.Pipeline([('s2', text_col(key='no_punctuation')), ('tfidf_bigram', tfidf_bigram)])),
-        #('topics', pipeline.Pipeline([('s3', text_col(key='no_stopwords')), ('tfidf_topics', tfidf_topics), ('tsvd', tsvd)])),
         ('tag', pipeline.Pipeline([('s4', text_col(key='pos_tag')), ('tfidf_pos', tfidf_pos)])),
         ('character', pipeline.Pipeline([('s5', text_col(key='text_clean')), ('character_vectorizer', character_vectorizer),
             ('tfidf_character', tfidf_transformer)])),
         ('affixes', pipeline.Pipeline([('s5', text_col(key='affixes')), ('tfidf_ngram', tfidf_ngram)])),
         ('affix_punct', pipeline.Pipeline([('s5', text_col(key='affix_punct')), ('tfidf_affix_punct', tfidf_affix_punct)])),
-        #('w2v', pipeline.Pipeline([('s5', w2v_col(key='w2v'))])),
     ]
     weights = {'cst': 0.3,
         'unigram': 0.8,
         'bigram': 0.1,
-        #'topics': 0.1,
         'tag': 0.2,
         'character': 0.8,
         'affixes': 0.4,
         'affix_punct': 0.1,
-        #'w2v':0.1,
     }
 
     if lang == 'ar':

@@ -13,8 +13,6 @@ if __name__ == '__main__':
                            help='Choose input trainset')
     args = argparser.parse_args()
 
-    args = argparser.parse_args()
-
     output = args.output
     input = args.input
 
@@ -38,16 +36,22 @@ if __name__ == '__main__':
 
         df_data = readPANcorpus(input, lang, test=True)
         print("Language: ", lang)
-        df_data = preprocess(df_data, lang, perceptron_tagger, sent_tokenizer, test=True)
-        df_data = convertToUnicode(df_data)
-        df_data = createFeatures(df_data, sent_tokenizer, lang)
+        df_prep = preprocess(df_data, lang, perceptron_tagger, sent_tokenizer, test=True)
+        df_conv = convertToUnicode(df_prep)
+        df_data = createFeatures(df_conv, sent_tokenizer, lang, 'nan')
         print("Data shape: ", df_data.shape)
         #test model
         id = df_data['id']
         X = df_data.drop(['gender', 'variety', 'id'], axis=1)
         clf = joblib.load('models/lr_clf_' + lang + '_gender.pkl')
         y_pred_gender = clf.predict(X)
+
+        if lang == 'en':
+            df_data = createFeatures(df_conv, sent_tokenizer, lang, 'variety')
+            X = df_data.drop(['gender', 'variety', 'id'], axis=1)
+
         clf = joblib.load('models/lr_clf_' + lang + '_variety.pkl')
+
         y_pred_variety = clf.predict(X)
         df_results = pd.DataFrame({"id": id, "gender": y_pred_gender, "variety": y_pred_variety})
         #df_results.to_csv('csv_files/results_' + lang + '.csv', index=False, header=True)
