@@ -40,10 +40,10 @@ if __name__ == '__main__':
             sent_tokenizer = None
 
     # uncomment this section if you want to read train sets from original file
-    #df_data = readPANcorpus(input, lang)
-    #df_data = pd.read_csv('csv_files/PAN_data_' + lang + '.csv', encoding="utf-8", delimiter="\t")
-    #print("Data shape: ", df_data.shape)
-    #df_data = preprocess(df_data, lang, perceptron_tagger, sent_tokenizer)
+    df_data = readPANcorpus(input, lang)
+    df_data = pd.read_csv('csv_files/PAN_data_' + lang + '.csv', encoding="utf-8", delimiter="\t")
+    print("Data shape: ", df_data.shape)
+    df_data = preprocess(df_data, lang, perceptron_tagger, sent_tokenizer)
 
     # uncomment this to read  data from csv
     data_iterator = pd.read_csv('csv_files/PAN_data_' + lang + '_tagged.csv', encoding="utf-8", delimiter="\t", chunksize=1000)

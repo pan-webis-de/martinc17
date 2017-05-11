@@ -35,11 +35,11 @@ if __name__ == '__main__':
                 sent_tokenizer = None
 
         df_data = readPANcorpus(input, lang, test=True)
-        print("Language: ", lang)
+        #print("Language: ", lang)
         df_prep = preprocess(df_data, lang, perceptron_tagger, sent_tokenizer, test=True)
         df_conv = convertToUnicode(df_prep)
         df_data = createFeatures(df_conv, sent_tokenizer, lang, 'nan')
-        print("Data shape: ", df_data.shape)
+        #print("Data shape: ", df_data.shape)
         #test model
         id = df_data['id']
         X = df_data.drop(['gender', 'variety', 'id'], axis=1)
