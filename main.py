@@ -182,7 +182,6 @@ def remove_stopwords(text, lang):
     else:
         return text
     text = text.split()
-    stops = set(stopwords.words("english"))
     text = [x.lower() for x in text if x.lower() not in stops]
     return " ".join(text)
 
