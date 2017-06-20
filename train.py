@@ -5,10 +5,10 @@ if __name__ == '__main__':
     # run from command line
     # e.g. python3 main.py --input './pan17-author-profiling-training-dataset-2017-03-10' --output results --language en
     argparser = argparse.ArgumentParser(description='Author Profiling Evaluation')
-    argparser.add_argument('-l', '--language', dest='language', type=str, default='en',
+    argparser.add_argument('-l', '--language', dest='language', type=str, default='ar',
                            help='Set language')
 
-    argparser.add_argument('-t', '--task', dest='task', type=str, default='variety',
+    argparser.add_argument('-t', '--task', dest='task', type=str, default='gender',
                            help='Set task')
 
     argparser.add_argument('-c', '--input', dest='input', type=str,
@@ -146,6 +146,6 @@ if __name__ == '__main__':
     print(results.mean())
 
     clf.fit(X, y)
-    joblib.dump(clf, 'models/lr_clf_' + lang + '_' + task + '.pkl')
+    joblib.dump(clf, 'models/lr_clf_' + lang + '_' + task + '_python2.pkl', protocol=2)
     print("--- Model creation in minutes ---", round(((time.time() - start_time) / 60), 2))
     print("--- Training & Testing in minutes ---", round(((time.time() - start_time) / 60), 2))
